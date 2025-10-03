@@ -17,21 +17,29 @@ func main(){
 
 	fmt.Println("Server listening on :8080")
 
+count := 0
+for{
 	conn, err := listener.Accept()
 	if err != nil {
-		fmt.Printf("Ошибка при принятии подключения: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		continue
 	}
-	defer conn.Close()
-	fmt.Println("Client connected")
+	count++
+	clientID := count
+	fmt.Printf("[Client %d] connected\n", clientID)
+	go handleConnection(conn, clientID)
+}
 
+}
+
+func handleConnection(conn net.Conn, id int){
+	defer conn.Close()
 	scanner := bufio.NewScanner(conn)
 	for scanner.Scan() {
-    fmt.Printf("Message: %s\n", scanner.Text())
+    fmt.Printf("[Client %d]: %s\n", id, scanner.Text())
 	}
 	if err := scanner.Err(); err != nil {
-    fmt.Printf("Error reading: %v\n", err)
+    fmt.Fprintf(os.Stderr, "[Client %d] error: %v\n", id, err)
 	}
-	fmt.Println("Client disconnected")
-
+	fmt.Printf("[Client %d] disconnected\n", id)
 }

@@ -29,9 +29,9 @@ func main(){
 			fmt.Println("Disconnected.")
 			break
 		}
-		_, err = conn.Write([]byte(input+"\n"))
+		_, err = fmt.Fprintln(conn, input)
 		if err != nil {
-			fmt.Printf("Ошибка при отправке: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error sending: %v\n", err)
 			break
 		}
 
