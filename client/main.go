@@ -12,9 +12,10 @@ func main(){
 	conn, err := net.Dial("tcp", "localhost:8080")
 	if err != nil {
 		fmt.Printf("Не удалось подключиться к серверу: %v\n", err)
+		os.Exit(1)
 	}
 	defer conn.Close()
-	fmt.Println("Enter message (or /quit to exit):")
+	fmt.Println("Connected to server.\nEnter message (or /quit to exit):")
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
@@ -25,7 +26,7 @@ func main(){
 		}
 		input = strings.TrimSpace(input)
 		if input == "/quit" {
-			fmt.Println("Goodbye!")
+			fmt.Println("Disconnected.")
 			break
 		}
 		_, err = conn.Write([]byte(input+"\n"))
