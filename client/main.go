@@ -8,46 +8,48 @@ import (
 	"strings"
 )
 
-func main(){
+func main() {
 	conn, err := net.Dial("tcp", "localhost:8080")
 	if err != nil {
-		fmt.Printf("Не удалось подключиться к серверу: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to connect: %v\n", err)
 		os.Exit(1)
 	}
 	defer conn.Close()
-	fmt.Println("Connected to server.\nEnter message (or /quit to exit):")
-	reader := bufio.NewReader(os.Stdin)
-	buff := make([]byte, 1024)
-	go getMessage(conn, buff)
 
+	fmt.Println("Connected to server.")
+	fmt.Println("Enter message (or /quit to exit):")
+
+	go getMessage(conn)
+
+	reader := bufio.NewReader(os.Stdin)
 	for {
-		input, err := reader.ReadString('\n') 
+		input, err := reader.ReadString('\n')
 		if err != nil {
-			fmt.Printf("Произошла ошибка при чтении строки %s\n", err)
-			os.Exit(1)
+			fmt.Fprintf(os.Stderr, "Input error: %v\n", err)
+			break
 		}
+
 		input = strings.TrimSpace(input)
 		if input == "/quit" {
 			fmt.Println("Disconnected.")
 			break
 		}
+
 		_, err = fmt.Fprintln(conn, input)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error sending: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Send error: %v\n", err)
 			break
 		}
-
 	}
 }
 
-func getMessage(conn net.Conn, buff []byte) {
-	for {
-		n, err := conn.Read(buff)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-    fmt.Print(string(buff[0:n]))
-    fmt.Println()
+func getMessage(conn net.Conn) {
+	scanner := bufio.NewScanner(conn)
+	for scanner.Scan() {
+		fmt.Print(scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "Connection closed: %v\n", err)
+		return
 	}
 }

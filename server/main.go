@@ -17,7 +17,7 @@ type Client struct {
 
 type ClientManager struct {
 	clients map[int64]*Client
-	mutex sync.RWMutex
+	mutex   sync.RWMutex
 }
 
 func NewClientManager() *ClientManager {
@@ -54,9 +54,9 @@ func (cm *ClientManager) Broadcast(exceptID int64, message []byte) {
 	for _, client := range clients {
 		if _, err := client.conn.Write(message); err != nil {
 			slog.Info("Failed to send to client",
-    slog.Int64("client_id", client.id),
-    slog.Any("error", err),
-)
+				slog.Int64("client_id", client.id),
+				slog.Any("error", err),
+			)
 			go cm.Remove(client.id)
 		}
 	}
@@ -90,7 +90,6 @@ func main() {
 
 		go handleConnection(manager, client)
 
-		
 	}
 }
 
@@ -107,12 +106,6 @@ func handleConnection(manager *ClientManager, client *Client) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		slog.Info("Client scan error", slog.Int64("client.id",client.id), slog.Any("err", err))
+		slog.Info("Client scan error", slog.Int64("client.id", client.id), slog.Any("err", err))
 	}
 }
-
-	
-
-
-
-
