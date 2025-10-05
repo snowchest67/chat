@@ -3,73 +3,116 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 )
 
 type Client struct {
 	conn net.Conn
-	id int
+	id   int64
 }
 
-type ClientMap map[int]*Client
+type ClientManager struct {
+	clients map[int64]*Client
+	mutex sync.RWMutex
+}
 
-func main(){
-	var clients ClientMap = make(ClientMap)
-	var mutex sync.Mutex
-	listener, err := net.Listen("tcp",":8080") //создаём слушателя, который «слушает» входящие соединения на определённом адресе и порту
+func NewClientManager() *ClientManager {
+	return &ClientManager{
+		clients: make(map[int64]*Client),
+	}
+}
+
+func (cm *ClientManager) Add(id int64, client *Client) {
+	cm.mutex.Lock()
+	defer cm.mutex.Unlock()
+	cm.clients[id] = client
+}
+
+func (cm *ClientManager) Remove(id int64) {
+	cm.mutex.Lock()
+	defer cm.mutex.Unlock()
+	if client, ok := cm.clients[id]; ok {
+		client.conn.Close()
+		delete(cm.clients, id)
+	}
+}
+
+func (cm *ClientManager) Broadcast(exceptID int64, message []byte) {
+	cm.mutex.RLock()
+	clients := make([]*Client, 0, len(cm.clients))
+	for id, client := range cm.clients {
+		if id != exceptID {
+			clients = append(clients, client)
+		}
+	}
+	cm.mutex.RUnlock()
+
+	for _, client := range clients {
+		if _, err := client.conn.Write(message); err != nil {
+			slog.Info("Failed to send to client",
+    slog.Int64("client_id", client.id),
+    slog.Any("error", err),
+)
+			go cm.Remove(client.id)
+		}
+	}
+}
+
+var clientIDcounter int64
+
+func main() {
+	manager := NewClientManager()
+	listener, err := net.Listen("tcp", ":8080")
 	if err != nil {
-		fmt.Printf("Произошла ошибка при прослушивании: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error listening: %v\n", err)
 		os.Exit(1)
 	}
 	defer listener.Close()
 
 	fmt.Println("Server listening on :8080")
 
-count := 0
-for{
-	conn, err := listener.Accept()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		continue
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Accept error: %v\n", err)
+			continue
+		}
+
+		id := atomic.AddInt64(&clientIDcounter, 1)
+		slog.Info("Client connected", slog.Int64("client_id", id))
+
+		client := &Client{conn: conn, id: id}
+		manager.Add(id, client)
+
+		go handleConnection(manager, client)
+
+		
 	}
-	count++
-	clientID := count
-	fmt.Printf("[Client %d] connected\n", clientID)
-	go handleConnection(conn, clientID, &clients, &mutex)
 }
 
-}
+func handleConnection(manager *ClientManager, client *Client) {
+	defer func() {
+		manager.Remove(client.id)
+		slog.Info("Client disconnected", slog.Int64("client_id", client.id))
+	}()
 
-func handleConnection(conn net.Conn, id int, clients *ClientMap, mutex *sync.Mutex){
-	defer conn.Close()
-	mutex.Lock()
-	(*clients)[id] = &Client{conn, id}
-	mutex.Unlock()
-	scanner := bufio.NewScanner(conn)
+	scanner := bufio.NewScanner(client.conn)
 	for scanner.Scan() {
-    input := scanner.Text()
-    for _, n := range *clients {
-        if n.id == id {
-            continue
-        }
-        message := fmt.Sprintf("[Client %d] %s", id, input)
-
-        _, err := n.conn.Write([]byte(message))
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "[Client %d] error: %v\n", id, err)
-            continue
-        }
-    }
-}
+		message := fmt.Sprintf("[Client %d]: %s\n", client.id, scanner.Text())
+		manager.Broadcast(client.id, []byte(message))
+	}
 
 	if err := scanner.Err(); err != nil {
-    fmt.Fprintf(os.Stderr, "[Client %d] error: %v\n", id, err)
+		slog.Info("Client scan error", slog.Int64("client.id",client.id), slog.Any("err", err))
 	}
-	fmt.Printf("[Client %d] disconnected\n", id)
-	mutex.Lock()
-	delete(*clients, id)
-	mutex.Unlock()
-	
 }
+
+	
+
+
+
+
