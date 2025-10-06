@@ -16,12 +16,25 @@ func main() {
 	}
 	defer conn.Close()
 
+	reader := bufio.NewReader(os.Stdin)
+
 	fmt.Println("Connected to server.")
+	fmt.Print("Enter your name: ")
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	_, err = fmt.Fprintln(conn, input)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Send error: %v\n", err)
+		os.Exit(1)
+	}
 	fmt.Println("Enter message (or /quit to exit):")
 
 	go getMessage(conn)
 
-	reader := bufio.NewReader(os.Stdin)
+loop:
 	for {
 		input, err := reader.ReadString('\n')
 		if err != nil {
@@ -34,19 +47,19 @@ func main() {
 			fmt.Println("Disconnected.")
 			break
 		}
-
 		_, err = fmt.Fprintln(conn, input)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Send error: %v\n", err)
-			break
-		}
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Send error: %v\n", err)
+        break loop
+    }
+
 	}
 }
 
 func getMessage(conn net.Conn) {
 	scanner := bufio.NewScanner(conn)
 	for scanner.Scan() {
-		fmt.Print(scanner.Text())
+		fmt.Println(scanner.Text())
 	}
 	if err := scanner.Err(); err != nil {
 		fmt.Fprintf(os.Stderr, "Connection closed: %v\n", err)
