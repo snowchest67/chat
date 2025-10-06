@@ -24,7 +24,7 @@ I'm still learning Go, so any feedback is welcome! You can help by:
 - Reviewing the code and suggesting improvements
 - Pointing out better ways to handle errors, concurrency, or structure
 - Sharing resources or patterns you love in Go
-- Opening an [Issue](https://github.com/snowchest67/todo/issues/1#issue-3489238452) with tips, questions, or ideas
+- Opening an [Issue](https://github.com/snowchest67/chat/issues/1#issue-3489268368) with tips, questions, or ideas
 - Leaving a message in the feedback.txt file (see below)
 
 ## ✍️ Leave a Message
