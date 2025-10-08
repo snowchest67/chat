@@ -58,19 +58,14 @@ func (cm *ClientManager) Broadcast(exceptID int64, message []byte) {
 	}
 	cm.mutex.RUnlock()
 
-	flag := false
 	for _, client := range clients {
 		if _, err := client.conn.Write(message); err != nil {
 			cm.logger.Info("Failed to send to client",
 				slog.Int64("client_id", client.id),
 				slog.Any("error", err),
 			)
-		} else if !flag {
-			cm.logger.Info(string(message))
-			flag = true
 		}
 	}
-
 }
 
 func (cm *ClientManager) ChangeName(id int64, newName string) {
@@ -165,6 +160,9 @@ func handleConnection(cm *ClientManager, client *Client, wg *sync.WaitGroup) {
 		default:
 			message := fmt.Sprintf("[Client %s]: %s\n", client.name, scanner.Text())
 			cm.Broadcast(client.id, []byte(message))
+
+			timestamped := fmt.Sprintf("[%s] %s", time.Now().Format("2006-01-02 15:04:05"), message)
+			cm.logger.Info(strings.TrimSpace(timestamped))
 		}
 
 	}
