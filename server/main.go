@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"fmt"
 	"log"
 	"log/slog"
@@ -58,15 +59,18 @@ func (cm *ClientManager) Broadcast(exceptID int64, message []byte) {
 	}
 	cm.mutex.RUnlock()
 
+	
 	for _, client := range clients {
 		if _, err := client.conn.Write(message); err != nil {
 			cm.logger.Info("Failed to send to client",
 				slog.Int64("client_id", client.id),
 				slog.Any("error", err),
 			)
+		} 
 		}
 	}
-}
+
+
 
 func (cm *ClientManager) ChangeName(id int64, newName string) {
 	cm.mutex.Lock()
@@ -96,7 +100,7 @@ func (cm *ClientManager) CloseAll() {
 	}
 }
 
-func handleConnection(cm *ClientManager, client *Client, wg *sync.WaitGroup) {
+func handleConnection(cm *ClientManager, client *Client, wg *sync.WaitGroup, chatLog *os.File) {
 	defer func() {
 		cm.Remove(client.id)
 		wg.Done() // -1 count
@@ -158,11 +162,16 @@ func handleConnection(cm *ClientManager, client *Client, wg *sync.WaitGroup) {
 				client.conn.Write([]byte(fmt.Sprintf("User %s not found\n", targetName)))
 			}
 		default:
-			message := fmt.Sprintf("[Client %s]: %s\n", client.name, scanner.Text())
-			cm.Broadcast(client.id, []byte(message))
+     text := scanner.Text()
+    message := fmt.Sprintf("[Client %s]: %s\n", client.name, text)
+    cm.Broadcast(client.id, []byte(message))
 
-			timestamped := fmt.Sprintf("[%s] %s", time.Now().Format("2006-01-02 15:04:05"), message)
-			cm.logger.Info(strings.TrimSpace(timestamped))
+    logLine := fmt.Sprintf("[%s] [%s]: %s\n",
+        time.Now().Format("2006-01-02 15:04:05"),
+        client.name,
+        text,
+    )
+    chatLog.WriteString(logLine)
 		}
 
 	}
@@ -184,7 +193,7 @@ func (cm *ClientManager) NotifyShutdown() {
 var clientIDcounter int64
 
 func main() {
-	logFile, err := os.OpenFile("chat.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	logFile, err := os.OpenFile("server.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatalf("Error opening file: %v", err)
 	}
@@ -195,8 +204,19 @@ func main() {
 	})
 	logger := slog.New(handler)
 
+	chatLog, err := os.OpenFile("chat.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+if err != nil {
+    log.Fatal(err)
+}
+
 	manager := NewClientManager(logger)
-	listener, err := net.Listen("tcp", ":8080")
+	cert, err := tls.LoadX509KeyPair("cert.pem", "key.pem")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error certification: %v\n", err)
+		os.Exit(1)
+	}
+config := &tls.Config{Certificates: []tls.Certificate{cert}}
+listener, err := tls.Listen("tcp", ":8080", config)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error listening: %v\n", err)
 		os.Exit(1)
@@ -238,7 +258,7 @@ func main() {
 			manager.Add(id, client)
 
 			wg.Add(1) //+1 count
-			go handleConnection(manager, client, &wg)
+			go handleConnection(manager, client, &wg, chatLog)
 		}
 	}()
 
@@ -260,5 +280,6 @@ func main() {
 	case <-time.After(10 * time.Second):
 		fmt.Println("Timeout! Forcing shutdown")
 	}
+	chatLog.Close()
 
 }
