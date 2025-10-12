@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<title>Go Chat</title>
+		<style>
+			body {
+				font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+					sans-serif;
+				max-width: 800px;
+				margin: 20px auto;
+				background: #f9f9f9;
+				padding: 0 10px;
+			}
+			h1 {
+				text-align: center;
+				color: #333;
+			}
+			h2 {
+				text-align: center;
+				color: #555;
+				margin-bottom: 15px;
+			}
+			#chat {
+				border: 1px solid #ddd;
+				border-radius: 8px;
+				background: white;
+				height: 400px;
+				overflow-y: auto;
+				padding: 12px;
+				margin-bottom: 12px;
+				box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+			}
+			#chat div {
+				margin-bottom: 8px;
+				padding: 4px 0;
+				word-wrap: break-word;
+			}
+			#message {
+				width: 70%;
+				padding: 10px;
+				border: 1px solid #ccc;
+				border-radius: 4px;
+				font-size: 16px;
+			}
+			#send,
+			button {
+				padding: 10px 16px;
+				background: #007bff;
+				color: white;
+				border: none;
+				border-radius: 4px;
+				cursor: pointer;
+				font-size: 16px;
+			}
+			#send:hover,
+			button:hover {
+				background: #0056b3;
+			}
+			.hidden {
+				display: none;
+			}
+			input:focus,
+			button:focus {
+				outline: none;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Go Chat</h1>
+		<h2 id="userLabel" class="hidden">Chat as: <span id="userName"></span></h2>
+
+		<div id="nameScreen">
+			<p>Enter your name:</p>
+			<input type="text" id="nameInput" placeholder="Your name" />
+			<button onclick="connect()">Connect</button>
+		</div>
+
+		<div id="chatScreen" class="hidden">
+			<div id="chat"></div>
+			<input type="text" id="message" placeholder="Type a message..." />
+			<button id="send" onclick="sendMessage()">Send</button>
+			<button onclick="disconnect()">Disconnect</button>
+		</div>
+
+		<script>
+			let ws = null
+			let myName = ''
+
+			function connect() {
+				const name = document.getElementById('nameInput').value.trim()
+				if (!name) {
+					alert('Please enter a name')
+					return
+				}
+				myName = name
+
+				ws = new WebSocket('ws://localhost:8081/ws')
+
+				ws.onopen = () => {
+					ws.send(name)
+					document.getElementById('nameScreen').classList.add('hidden')
+					document.getElementById('chatScreen').classList.remove('hidden')
+					document.getElementById('userName').textContent = myName
+					document.getElementById('userLabel').classList.remove('hidden')
+					appendMessage('Connected to chat!')
+				}
+
+				ws.onmessage = event => {
+					appendMessage(event.data)
+				}
+
+				ws.onclose = () => {
+					appendMessage('Disconnected from server.')
+					document.getElementById('chatScreen').classList.add('hidden')
+					document.getElementById('nameScreen').classList.remove('hidden')
+					document.getElementById('chat').innerHTML = ''
+					document.getElementById('userLabel').classList.add('hidden')
+					ws = null
+				}
+
+				ws.onerror = error => {
+					console.error('WebSocket error:', error)
+					appendMessage('Connection error!')
+				}
+			}
+
+			function sendMessage() {
+				const input = document.getElementById('message')
+				const text = input.value.trim()
+				if (text) {
+					appendMyMessage(text)
+					ws.send(text)
+					input.value = ''
+				}
+			}
+
+			function appendMyMessage(text) {
+				const chat = document.getElementById('chat')
+				const msgDiv = document.createElement('div')
+				msgDiv.textContent = `[Me]: ${text}`
+				msgDiv.style.textAlign = 'right'
+				msgDiv.style.color = '#007bff'
+				chat.appendChild(msgDiv)
+				chat.scrollTop = chat.scrollHeight
+			}
+
+			function appendMessage(text) {
+				const chat = document.getElementById('chat')
+				const msgDiv = document.createElement('div')
+				msgDiv.textContent = text
+				chat.appendChild(msgDiv)
+				chat.scrollTop = chat.scrollHeight
+			}
+
+			function disconnect() {
+				if (ws) {
+					ws.close()
+					ws = null
+				}
+			}
+
+			document.getElementById('message').addEventListener('keypress', e => {
+				if (e.key === 'Enter') sendMessage()
+			})
+		</script>
+	</body>
+</html>
